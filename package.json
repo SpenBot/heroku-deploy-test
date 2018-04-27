@@ -1,0 +1,28 @@
+{
+  "name": "ga-thesis-backend",
+  "version": "1.0.0",
+  "description": "- BACKEND for Project 4. - Student Thesis for General Assembly WDI-DC 18.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SpenBot/ga-thesis-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SpenBot/ga-thesis-backend/issues"
+  },
+  "homepage": "https://github.com/SpenBot/ga-thesis-backend#readme",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "chalk": "^2.2.0",
+    "cors": "^2.8.4",
+    "express": "^4.16.2",
+    "mongoose": "^4.12.4",
+    "socket.io": "^2.0.4"
+  }
+}
