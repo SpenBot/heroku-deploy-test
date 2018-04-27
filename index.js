@@ -1,110 +1,281 @@
 
-/////////////// CONFIGURATION //////////////////////////////////////
-////////////////////////////////////////////////////////////////////
+//// DEPENDENCIES, MODULES, CONFIGURATIONS ////////////////////////////
+///////////////////////////////////////////////////////////////////////
 
 const express = require('express')
 const app = express()
+
+// const socket = require('socket.io')
 const cors = require('cors')
+
+
+
+
+
+
+//// MIDDLEWWARE //////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
 
 app.use(cors())
 
-/////////////// SOCKET CONFIG /////////////////////////////////////
 const http = require('http')
 const socketIO = require('socket.io')
 const server = http.createServer(app)
 const io = socketIO.listen(server)
 
 
-server.listen(process.env.PORT || 4000, () => {
-// server.listen(4000, () => {
-    console.log("\n\tServer active. Listening on port 4000\n")
+
+
+
+//// SERVER CONFIGURATIONS /////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+app.set('port', process.env.PORT || 4000)
+
+server.listen(app.get('port'), () => {
+  console.log(`\n\tServer listening on port : ${app.get('port')}.\n`)
 })
 
-
-
-
-
-/////////////// INDEX ROUTE ///////////////////////////////////////
 app.get("/", (req, res) => {
-  res.send("Hello Monkey")
+  // res.send("Hello CRST-back")
+  res.json({
+    test1: 1,
+    test2: 2,
+    test3: 3,
+    test4: 4,
+    test5: 5
+  })
 })
 
 
 
 
-/////////////// SOCKET EVENTS //////////////////////////////////////
-////////////////////////////////////////////////////////////////////
 
-io.on('connection', (socket) => {
-  console.log('\n\tUser Connected')
+/////////////// GAME STATE /////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 
-/////////////// CHAT MESSAGES //////////////////////////////////////
+let playerRed = null
+let playerBlue = null
 
-  socket.on('chat message', (msg) => io.emit('chat message', msg))
+let canvasHeight = 360
+let canvasWidth = 640
 
-/////////////// PLAYERS ////////////////////////////////////////////
+const startRedX = 30
+const startRedY = ( (canvasHeight / 2) - 10 )
+const startBlueX = (canvasWidth - 50)
+const startBlueY = ( (canvasHeight / 2) - 10 )
 
-  socket.on('new player1', (player1) => {
-    io.emit('new player1', player1)
+let redX = startRedX
+let redY = startRedY
+let blueX = startBlueX
+let blueY = startBlueY
+
+const moveVal = 20
+
+
+
+
+
+
+/////////////// EMIT: GAME RESET //////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function gameReset () {
+
+    redX = startRedX
+    redY = startRedY
+    blueX = startBlueX
+    blueY = startBlueY
+
+    playerPositions()
+
+}
+
+
+
+/////////////// EMIT : PLAYER POSITIONS ///////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function playerPositions () {
+
+    io.sockets.emit('playerPositions', {
+      redX: redX,
+      redY: redY,
+      blueX: blueX,
+      blueY: blueY
+    })
+
+}
+
+
+
+/////////////// EMIT : PLAYERS CHOSEN /////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function playersChosen () {
+
+  io.sockets.emit('playerChosen', {
+    playerRed: playerRed,
+    playerBlue: playerBlue,
   })
-  socket.on('new player2', (player2) => {
-    io.emit('new player2', player2)
+
+}
+
+
+
+/////////////// EMIT : RESET PLAYERS //////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function resetPlayers () {
+
+    playerRed = null
+    playerBlue = null
+
+    io.sockets.emit('playerReset', {
+      player: null
+    })
+
+    playersChosen()
+
+}
+
+
+
+
+
+
+
+
+
+/////////////// SOCKET METHODS ////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+io.on('connection', function(socket) {
+
+
+  //// LOG CONNECTION ////
+  console.log(`\n\tUser Connected: ${socket.id}\n`)
+
+  //// EMIT [ ON CONNECTION ] : PLAYER POSITIONS ////
+  socket.emit('playerPositions', {
+      redX: redX,
+      redY: redY,
+      blueX: blueX,
+      blueY: blueY
   })
 
-/////////////// TURNS ////////////////////////////////////////////
-  socket.on('new Turn', (newTurn, newP1Coin, newP1OP, newP2Coin, newP2OP) => {
-    io.emit(`new Turn`, newTurn, newP1Coin, newP1OP, newP2Coin, newP2OP)
+  //// EMIT [ ON CONNECTION ] : PLAYERS STAT ////
+  playersChosen()
+
+  //// LISTEN : CONFIRM SOCKET ////
+  socket.on('confirmSocket', () => {
+
+      socket.emit('socketConfirm', {
+        socket: true
+      })
+
   })
 
-/////////////// SLAP ///////////////////////////////////////////////
+  //// LISTEN + EMIT : SET PLAYERS ////
+  socket.on('playerSelected', function(data) {
 
-  socket.on('P1 slaps', (slapP2Health, slapP1Coin, slapP1OP) => {
-    io.emit(`P1 slaps`, slapP2Health, slapP1Coin, slapP1OP)
-  })
+      if (data.player === "red" && playerRed === null) {
 
-  socket.on('P2 slaps', (slapP1Health, slapP2Coin, slapP2OP) => {
-    io.emit(`P2 slaps`, slapP1Health, slapP2Coin, slapP2OP)
-  })
+          playerRed = socket.id
+          console.log(`Player Red : ${playerRed}`)
 
-/////////////// PUNCH ///////////////////////////////////////////////
+          socket.emit('playerSet', {
+            player: "red"
+          })
 
-  socket.on('P1 punches', (punchP2Health, punchP1Coin, punchP1OP) => {
-    io.emit(`P1 punches`, punchP2Health, punchP1Coin, punchP1OP)
-  })
-  socket.on('P2 punches', (punchP1Health, punchP2Coin, punchP2OP) => {
-    io.emit(`P2 punches`, punchP1Health, punchP2Coin, punchP2OP)
-  })
+          playersChosen()
 
-/////////////// MUD ///////////////////////////////////////////////
-  socket.on('P1 muds', (mudP2Health, mudP1Coin, mudP1OP) => {
-    io.emit(`P1 muds`, mudP2Health, mudP1Coin, mudP1OP)
-  })
+      }
 
-  socket.on('P2 muds', (mudP1Health, mudP2Coin, mudP2OP) => {
-    io.emit(`P2 muds`, mudP1Health, mudP2Coin, mudP2OP)
-  })
+      else if (data.player === "blue" && playerBlue === null) {
 
-/////////////// OVERFLOW //////////////////////////////////////
-  socket.on('P1 overflows', (overflowP1Coin, overflowP1OP) => {
-    io.emit('P1 overflows', overflowP1Coin, overflowP1OP)
-  })
+          playerBlue = socket.id
+          console.log(`Player Blue : ${playerBlue}`)
 
-  socket.on('P2 overflows', (overflowP2Coin, overflowP2OP) => {
-    io.emit('P2 overflows', overflowP2Coin, overflowP2OP)
-  })
+          socket.emit('playerSet', {
+            player: "blue"
+          })
 
-/////////////// CACHE //////////////////////////////////////
-  socket.on('P1 coinrestore', (coinrestoreP1Coin, coinrestoreP1OP) => {
-    io.emit('P1 coinrestore', coinrestoreP1Coin, coinrestoreP1OP)
-  })
+          playersChosen()
 
-  socket.on('P2 coinrestore', (coinrestoreP2Coin, coinrestoreP2OP) => {
-    io.emit('P2 coinrestore', coinrestoreP2Coin, coinrestoreP2OP)
+      }
+
+      gameReset()
+
   })
 
 
 
 
+  //// LISTEN + EMIT : PLAYER MOVEMENT ////
+  socket.on('movePlayer', function(data) {
 
-  socket.on('disconnect', () => console.log('\n\tUser Disconnected'))
+    // console.log(data)
+
+    if (data.player === "red") {
+      switch(data.direction) {
+          case "-x":
+              redX -= moveVal
+              break
+          case "-y":
+              redY -= moveVal
+              break
+          case "+x":
+              redX += moveVal
+              break
+          case "+y":
+              redY += moveVal
+              break
+      }
+      // console.log(`Red New x-y : ${redX}-${redY}`)
+    }
+
+    else if (data.player === "blue") {
+      switch(data.direction) {
+          case "-x":
+              blueX -= moveVal
+              break
+          case "-y":
+              blueY -= moveVal
+              break
+          case "+x":
+              blueX += moveVal
+              break
+          case "+y":
+              blueY += moveVal
+              break
+      }
+      // console.log(`Blue New x-y : ${blueX}-${blueY}`)
+    }
+
+    playerPositions()
+
+  })
+
+
+
+  //// LISTEN + EMIT : DISCONNECTIONS & RESETS ////
+  socket.on('disconnect', () => {
+
+      console.log(`\n\tUser Disconnected: ${socket.id}\n`)
+
+      if (playerRed === socket.id || playerBlue === socket.id) {
+          resetPlayers()
+          gameReset()
+      }
+
+  })
+
+
+
 })
+
+
+
+
+// END ////////////////////////////////////////////////////////////////
