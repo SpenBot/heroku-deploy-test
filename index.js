@@ -5,9 +5,8 @@
 const express = require('express')
 const app = express()
 
-// const socket = require('socket.io')
+const socket = require('socket.io')
 const cors = require('cors')
-
 
 
 
@@ -30,14 +29,11 @@ const io = socketIO.listen(server)
 //// SERVER CONFIGURATIONS /////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
-app.set('port', process.env.PORT || 4000)
-
-server.listen(app.get('port'), () => {
-  console.log(`\n\tServer listening on port : ${app.get('port')}.\n`)
+server.listen(process.env.PORT || 4000, () => {
+    console.log("\n\tServer listening on port.\n")
 })
 
 app.get("/", (req, res) => {
-  // res.send("Hello CRST-back")
   res.json({
     test1: 1,
     test2: 2,
@@ -60,24 +56,39 @@ let playerBlue = null
 let canvasHeight = 360
 let canvasWidth = 640
 
-const startRedX = 30
-const startRedY = ( (canvasHeight / 2) - 10 )
-const startBlueX = (canvasWidth - 50)
-const startBlueY = ( (canvasHeight / 2) - 10 )
+const startRedX = 1
+const startRedY = 9
+const startBlueX = 31
+const startBlueY = 9
+
+const startAppleX = 16
+const startAppleY = 9
+
+// const startRedX = 30
+// const startRedY = ( (canvasHeight / 2) - 10 )
+// const startBlueX = (canvasWidth - 50)
+// const startBlueY = ( (canvasHeight / 2) - 10 )
 
 let redX = startRedX
 let redY = startRedY
 let blueX = startBlueX
 let blueY = startBlueY
 
-const moveVal = 20
+let appleX = startAppleX
+let appleY = startAppleY
+
+const moveVal = 1
+
+const tileCountX = 32
+const tileCountY = 19
+
+let redScore = 0
+let blueScore = 0
 
 
 
 
-
-
-/////////////// EMIT: GAME RESET //////////////////////////////////////////////
+/////////////// EMIT : GAME RESET /////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 function gameReset () {
@@ -87,7 +98,12 @@ function gameReset () {
     blueX = startBlueX
     blueY = startBlueY
 
+    appleX = startAppleX
+    appleY = startAppleY
+
     playerPositions()
+    applePosition()
+    resetScore()
 
 }
 
@@ -106,6 +122,21 @@ function playerPositions () {
     })
 
 }
+
+
+
+/////////////// EMIT : APPLE POSITION /////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function applePosition () {
+
+    io.sockets.emit('applePosition', {
+      appleX: appleX,
+      appleY: appleY
+    })
+
+}
+
 
 
 
@@ -142,6 +173,85 @@ function resetPlayers () {
 
 
 
+/////////////// CHECK APPLE COLLISION /////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function checkAppleCol (player) {
+
+    let playerX
+    let playerY
+
+    if (player === "red") {
+      playerX = redX
+      playerY = redY
+    }
+    else if (player === "blue") {
+      playerX = blueX
+      playerY = blueY
+    }
+
+    if (playerX === appleX && playerY === appleY) {
+
+        addScore(player)
+
+        appleX = Math.floor( Math.random() * (tileCountX - 2)) + 1
+        appleY = Math.floor( Math.random() * (tileCountY - 2)) + 1
+
+        console.log(`new apple position: ${appleX}-${appleY}`)
+
+        applePosition()
+    }
+
+}
+
+/////////////// PLAYER COLLIDE ////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function playerCollide () {
+    io.sockets.emit('playerCollision', {
+      collide: true
+    })
+}
+
+
+
+
+
+/////////////// ADD SCORE /////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function addScore(player) {
+
+    if (player === "red") {
+      redScore += 10
+    }
+    else if (player === "blue") {
+      blueScore += 10
+    }
+
+    io.sockets.emit('addScore', {
+      redScore: redScore,
+      blueScore: blueScore
+    })
+
+}
+
+
+
+/////////////// RESET SCORE /////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+function resetScore () {
+
+    redScore = 0
+    blueScore = 0
+
+    io.sockets.emit('addScore', {
+      redScore: 0,
+      blueScore: 0
+    })
+
+}
 
 
 
@@ -164,7 +274,10 @@ io.on('connection', function(socket) {
       blueY: blueY
   })
 
-  //// EMIT [ ON CONNECTION ] : PLAYERS STAT ////
+  //// EMIT [ ON CONNECTION ] : APPLE POSITION ////
+  applePosition()
+
+  //// EMIT [ ON CONNECTION ] : PLAYERS CHOSEN ////
   playersChosen()
 
   //// LISTEN : CONFIRM SOCKET ////
@@ -176,7 +289,7 @@ io.on('connection', function(socket) {
 
   })
 
-  //// LISTEN + EMIT : SET PLAYERS ////
+  //// LISTEN + EMIT : PLAYER SELECTION ////
   socket.on('playerSelected', function(data) {
 
       if (data.player === "red" && playerRed === null) {
@@ -218,42 +331,75 @@ io.on('connection', function(socket) {
     // console.log(data)
 
     if (data.player === "red") {
-      switch(data.direction) {
-          case "-x":
-              redX -= moveVal
-              break
-          case "-y":
-              redY -= moveVal
-              break
-          case "+x":
-              redX += moveVal
-              break
-          case "+y":
-              redY += moveVal
-              break
-      }
-      // console.log(`Red New x-y : ${redX}-${redY}`)
+
+        let newRedX = redX
+        let newRedY = redY
+
+        switch(data.direction) {
+            case "-x":
+                newRedX = redX - moveVal
+                break
+            case "-y":
+                newRedY = redY - moveVal
+                break
+            case "+x":
+                newRedX = redX + moveVal
+                break
+            case "+y":
+                newRedY = redY + moveVal
+                break
+          }
+
+          if (newRedX === blueX && newRedY === blueY) {
+              playerCollide()
+          }
+          else if (newRedX < 0 || newRedY < 0 || newRedX > tileCountX || newRedY >= tileCountY) {
+              playerCollide()
+          }
+          else {
+              redX = newRedX
+              redY = newRedY
+          }
+
+          // console.log(`Red New x-y : ${redX}-${redY}`)
     }
 
     else if (data.player === "blue") {
-      switch(data.direction) {
-          case "-x":
-              blueX -= moveVal
-              break
-          case "-y":
-              blueY -= moveVal
-              break
-          case "+x":
-              blueX += moveVal
-              break
-          case "+y":
-              blueY += moveVal
-              break
-      }
-      // console.log(`Blue New x-y : ${blueX}-${blueY}`)
+
+          let newBlueX = blueX
+          let newBlueY = blueY
+
+          switch(data.direction) {
+              case "-x":
+                  newBlueX = blueX - moveVal
+                  break
+              case "-y":
+                  newBlueY = blueY - moveVal
+                  break
+              case "+x":
+                  newBlueX = blueX + moveVal
+                  break
+              case "+y":
+                  newBlueY = blueY + moveVal
+                  break
+          }
+
+          if (newBlueX === redX && newBlueY === redY) {
+              playerCollide()
+          }
+          else if (newBlueX < 0 || newBlueY < 0 || newBlueX > tileCountX || newBlueY >= tileCountY) {
+              playerCollide()
+          }
+          else {
+              blueX = newBlueX
+              blueY = newBlueY
+          }
+
+          // console.log(`Blue New x-y : ${blueX}-${blueY}`)
     }
 
     playerPositions()
+    checkAppleCol(data.player)
 
   })
 
@@ -274,6 +420,11 @@ io.on('connection', function(socket) {
 
 
 })
+
+
+
+
+
 
 
 
